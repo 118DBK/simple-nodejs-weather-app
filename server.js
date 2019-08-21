@@ -4,8 +4,8 @@ const request = require('request');
 const app = express()
 
 const apiKey = '****';
-const client_id = '****';
-const client_secret = '****';
+const clientId = '****';
+const clientSecret = '****';
 
 app.use(express.static('public'));
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -18,38 +18,49 @@ app.get('/', function (req, res) {
 app.post('/', function (req, res) {
   let city = req.body.city;
 
-  var api_url = 'https://openapi.naver.com/v1/papago/n2mt';
-  var options = {
-       url: api_url,
-       form: {'source':'ko', 'target':'en', 'text':city},
-       headers: {'X-Naver-Client-Id':client_id, 'X-Naver-Client-Secret': client_secret}
-    };
-  request.post(options, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      console.log(body)
-      let transCity = JSON.parse(body)
-      let url = `http://api.openweathermap.org/data/2.5/weather?q=${transCity.message.result.translatedText}&units=imperial&appid=${apiKey}`
+  function getCityWeather(cityName) {
+    let url = `http://api.openweathermap.org/data/2.5/weather?q=${cityName}&units=imperial&appid=${apiKey}`
 
-      request(url, function (err, response, body) {
-        if(err){
+    request(url, function (err, response, body) {
+      if(err){
+        res.render('index', {weather: null, error: 'Error, please try again'});
+      } else {
+        let weather = JSON.parse(body)
+        if(weather.main == undefined){
           res.render('index', {weather: null, error: 'Error, please try again'});
         } else {
-          let weather = JSON.parse(body)
-          if(weather.main == undefined){
-            res.render('index', {weather: null, error: 'Error, please try again'});
-          } else {
-            let tempC = ((weather.main.temp - 32) / 1.8).toFixed(1)
-            let weatherText = `It's ${tempC}° in ${city}!`;
-            res.render('index', {weather: weatherText, error: null});
-          }
+          let tempC = ((weather.main.temp - 32) / 1.8).toFixed(1)
+          let weatherText = `It's ${tempC}°C in ${city}!`;
+          res.render('index', {weather: weatherText, error: null});
         }
-      });
+      }
+    })
+  }
 
-    } else {
-      res.status(response.statusCode).end();
-      console.log('error = ' + response.statusCode);
-    }
-  });
+  let patternEng = /[a-zA-Z]/;
+
+  if(!patternEng.test(city)) {
+    var apiUrl = 'https://openapi.naver.com/v1/papago/n2mt';
+    var options = {
+       url: apiUrl,
+       form: {'source':'ko', 'target':'en', 'text':city},
+       headers: {'X-Naver-Client-Id':clientId, 'X-Naver-Client-Secret': clientSecret}
+    };
+    request.post(options, function (err, response, body) {
+      if(err){
+        res.render('index', {weather: null, error: 'Error, please try again'});
+      } else {
+        let transCity = JSON.parse(body)
+        if(transCity == undefined){
+          res.render('index', {weather: null, error: 'Error, please try again'});
+        } else {
+          getCityWeather(transCity.message.result.translatedText)
+        }
+      }
+    })
+  }else {
+    getCityWeather(city)
+  }
 })
 
 app.listen(8080, function () {
